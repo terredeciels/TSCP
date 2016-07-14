@@ -116,8 +116,11 @@ BOOL attack(int sq, int s)
 	int i, j, n;
 
 	for (i = 0; i < 64; ++i)
-		if (color[i] == s) {
-			if (piece[i] == PAWN) {
+	{
+		if (color[i] == s)
+		{
+			if (piece[i] == PAWN)
+			{
 				if (s == LIGHT) {
 					if (COL(i) != 0 && i - 9 == sq)
 						return TRUE;
@@ -131,8 +134,12 @@ BOOL attack(int sq, int s)
 						return TRUE;
 				}
 			}
-			else
+		}
+	}
+			//else
+			{
 				for (j = 0; j < offsets[piece[i]]; ++j)
+				{
 					for (n = i;;) {
 						n = mailbox[mailbox64[n] + offset[piece[i]][j]];
 						if (n == -1)
@@ -144,8 +151,9 @@ BOOL attack(int sq, int s)
 						if (!slide[piece[i]])
 							break;
 					}
-		}
-	return FALSE;
+				}
+			}
+			return FALSE;
 }
 
 
