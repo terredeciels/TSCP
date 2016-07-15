@@ -12,7 +12,7 @@
 #include "protos.h"
 
 
-/* init_board() sets the board to the initial game state. */
+ /* init_board() sets the board to the initial game state. */
 
 void init_board()
 {
@@ -70,7 +70,7 @@ int hash_rand()
    for the current chess position. Of course, there are many more chess
    positions than there are 32 bit numbers, so the numbers generated are
    not really unique, but they're unique enough for our purposes (to detect
-   repetitions of the position). 
+   repetitions of the position).
    The way it works is to XOR random numbers that correspond to features of
    the position, e.g., if there's a black knight on B8, hash is XORed with
    hash_piece[BLACK][KNIGHT][B8]. All of the pieces are XORed together,
@@ -82,7 +82,7 @@ void set_hash()
 {
 	int i;
 
-	hash = 0;	
+	hash = 0;
 	for (i = 0; i < 64; ++i)
 		if (color[i] != EMPTY)
 			hash ^= hash_piece[color[i]][piece[i]][i];
@@ -117,10 +117,8 @@ BOOL attack(int sq, int s)
 
 	for (i = 0; i < 64; ++i)
 	{
-		if (color[i] == s)
-		{
-			if (piece[i] == PAWN)
-			{
+		if (color[i] == s) {
+			if (piece[i] == PAWN) {
 				if (s == LIGHT) {
 					if (COL(i) != 0 && i - 9 == sq)
 						return TRUE;
@@ -134,9 +132,7 @@ BOOL attack(int sq, int s)
 						return TRUE;
 				}
 			}
-		}
-	}
-			//else
+			else
 			{
 				for (j = 0; j < offsets[piece[i]]; ++j)
 				{
@@ -153,67 +149,14 @@ BOOL attack(int sq, int s)
 					}
 				}
 			}
-			return FALSE;
+		}
+	}
+	return FALSE;
 }
 
 
-/* gen() generates pseudo-legal moves for the current position.
-   It scans the board to find friendly pieces and then determines
-   what squares they attack. When it finds a piece/square
-   combination, it calls gen_push to put the move on the "move
-   stack." */
-
-void gen()
+void genCastles()
 {
-	int i, j, n;
-
-	/* so far, we have no moves for the current ply */
-	first_move[ply + 1] = first_move[ply];
-
-	for (i = 0; i < 64; ++i)
-		if (color[i] == side) {
-			if (piece[i] == PAWN) {
-				if (side == LIGHT) {
-					if (COL(i) != 0 && color[i - 9] == DARK)
-						gen_push(i, i - 9, 17);
-					if (COL(i) != 7 && color[i - 7] == DARK)
-						gen_push(i, i - 7, 17);
-					if (color[i - 8] == EMPTY) {
-						gen_push(i, i - 8, 16);
-						if (i >= 48 && color[i - 16] == EMPTY)
-							gen_push(i, i - 16, 24);
-					}
-				}
-				else {
-					if (COL(i) != 0 && color[i + 7] == LIGHT)
-						gen_push(i, i + 7, 17);
-					if (COL(i) != 7 && color[i + 9] == LIGHT)
-						gen_push(i, i + 9, 17);
-					if (color[i + 8] == EMPTY) {
-						gen_push(i, i + 8, 16);
-						if (i <= 15 && color[i + 16] == EMPTY)
-							gen_push(i, i + 16, 24);
-					}
-				}
-			}
-			else
-				for (j = 0; j < offsets[piece[i]]; ++j)
-					for (n = i;;) {
-						n = mailbox[mailbox64[n] + offset[piece[i]][j]];
-						if (n == -1)
-							break;
-						if (color[n] != EMPTY) {
-							if (color[n] == xside)
-								gen_push(i, n, 1);
-							break;
-						}
-						gen_push(i, n, 0);
-						if (!slide[piece[i]])
-							break;
-					}
-		}
-
-	/* generate castle moves */
 	if (side == LIGHT) {
 		if (castle & 1)
 			gen_push(E1, G1, 2);
@@ -226,8 +169,10 @@ void gen()
 		if (castle & 8)
 			gen_push(E8, C8, 2);
 	}
-	
-	/* generate en passant moves */
+}
+
+void genEnPassant()
+{
 	if (ep != -1) {
 		if (side == LIGHT) {
 			if (COL(ep) != 0 && color[ep + 7] == LIGHT && piece[ep + 7] == PAWN)
@@ -244,6 +189,100 @@ void gen()
 	}
 }
 
+void genPawn(int i)
+{
+	if (side == LIGHT) {
+		if (COL(i) != 0 && color[i - 9] == DARK)
+			gen_push(i, i - 9, 17);
+		if (COL(i) != 7 && color[i - 7] == DARK)
+			gen_push(i, i - 7, 17);
+		if (color[i - 8] == EMPTY) {
+			gen_push(i, i - 8, 16);
+			if (i >= 48 && color[i - 16] == EMPTY)
+				gen_push(i, i - 16, 24);
+		}
+	}
+	else {
+		if (COL(i) != 0 && color[i + 7] == LIGHT)
+			gen_push(i, i + 7, 17);
+		if (COL(i) != 7 && color[i + 9] == LIGHT)
+			gen_push(i, i + 9, 17);
+		if (color[i + 8] == EMPTY) {
+			gen_push(i, i + 8, 16);
+			if (i <= 15 && color[i + 16] == EMPTY)
+				gen_push(i, i + 16, 24);
+		}
+	}
+}
+
+void genPiece(int i)
+{
+	for (int j = 0; j < offsets[piece[i]]; ++j)
+	{
+		int n = i;
+		while (1) {
+			n = mailbox[mailbox64[n] + offset[piece[i]][j]];
+			if (n == -1)
+				break;
+			if (color[n] == EMPTY) {
+				gen_push(i, n, 0);
+				if (!slide[piece[i]])
+					break;
+			}
+			else {
+				if (color[n] == xside)
+					gen_push(i, n, 1);
+				break;
+			}
+		}
+	}
+}
+
+void genSidePiece(int i)
+{
+	if (piece[i] == PAWN) {
+		genPawn(i);
+
+	}
+	else
+	{
+		genPiece(i);
+
+	}
+
+}
+
+void genMoves()
+{
+
+	for (int i = 0; i < 64; ++i)
+	{
+		if (color[i] == side) {
+			genSidePiece(i);
+		}
+
+	}
+}
+
+/* gen() generates pseudo-legal moves for the current position.
+   It scans the board to find friendly pieces and then determines
+   what squares they attack. When it finds a piece/square
+   combination, it calls gen_push to put the move on the "move
+   stack." */
+
+void gen()
+{
+	/* so far, we have no moves for the current ply */
+	first_move[ply + 1] = first_move[ply];
+	genMoves();
+
+	/* generate castle moves */
+	genCastles();
+	/* generate en passant moves */
+	genEnPassant();
+
+}
+
 
 /* gen_caps() is basically a copy of gen() that's modified to
    only generate capture and promote moves. It's used by the
@@ -256,7 +295,7 @@ void gen_caps()
 	first_move[ply + 1] = first_move[ply];
 	for (i = 0; i < 64; ++i)
 		if (color[i] == side) {
-			if (piece[i]==PAWN) {
+			if (piece[i] == PAWN) {
 				if (side == LIGHT) {
 					if (COL(i) != 0 && color[i - 9] == DARK)
 						gen_push(i, i - 9, 17);
@@ -318,7 +357,7 @@ void gen_caps()
 void gen_push(int from, int to, int bits)
 {
 	gen_t *g;
-	
+
 	if (bits & 16) {
 		if (side == LIGHT) {
 			if (to <= H8) {
@@ -352,7 +391,7 @@ void gen_promote(int from, int to, int bits)
 {
 	int i;
 	gen_t *g;
-	
+
 	for (i = KNIGHT; i <= QUEEN; ++i) {
 		g = &gen_dat[first_move[ply + 1]++];
 		g->m.b.from = (char)from;
@@ -370,7 +409,7 @@ void gen_promote(int from, int to, int bits)
 
 BOOL makemove(move_bytes m)
 {
-	
+
 	/* test to see if a castle move is legal and move the rook
 	   (the king is moved with the usual move code later) */
 	if (m.bits & 2) {
@@ -379,38 +418,38 @@ BOOL makemove(move_bytes m)
 		if (in_check(side))
 			return FALSE;
 		switch (m.to) {
-			case 62:
-				if (color[F1] != EMPTY || color[G1] != EMPTY ||
-						attack(F1, xside) || attack(G1, xside))
-					return FALSE;
-				from = H1;
-				to = F1;
-				break;
-			case 58:
-				if (color[B1] != EMPTY || color[C1] != EMPTY || color[D1] != EMPTY ||
-						attack(C1, xside) || attack(D1, xside))
-					return FALSE;
-				from = A1;
-				to = D1;
-				break;
-			case 6:
-				if (color[F8] != EMPTY || color[G8] != EMPTY ||
-						attack(F8, xside) || attack(G8, xside))
-					return FALSE;
-				from = H8;
-				to = F8;
-				break;
-			case 2:
-				if (color[B8] != EMPTY || color[C8] != EMPTY || color[D8] != EMPTY ||
-						attack(C8, xside) || attack(D8, xside))
-					return FALSE;
-				from = A8;
-				to = D8;
-				break;
-			default:  /* shouldn't get here */
-				from = -1;
-				to = -1;
-				break;
+		case 62:
+			if (color[F1] != EMPTY || color[G1] != EMPTY ||
+				attack(F1, xside) || attack(G1, xside))
+				return FALSE;
+			from = H1;
+			to = F1;
+			break;
+		case 58:
+			if (color[B1] != EMPTY || color[C1] != EMPTY || color[D1] != EMPTY ||
+				attack(C1, xside) || attack(D1, xside))
+				return FALSE;
+			from = A1;
+			to = D1;
+			break;
+		case 6:
+			if (color[F8] != EMPTY || color[G8] != EMPTY ||
+				attack(F8, xside) || attack(G8, xside))
+				return FALSE;
+			from = H8;
+			to = F8;
+			break;
+		case 2:
+			if (color[B8] != EMPTY || color[C8] != EMPTY || color[D8] != EMPTY ||
+				attack(C8, xside) || attack(D8, xside))
+				return FALSE;
+			from = A8;
+			to = D8;
+			break;
+		default:  /* shouldn't get here */
+			from = -1;
+			to = -1;
+			break;
 		}
 		color[to] = color[from];
 		piece[to] = piece[from];
@@ -510,27 +549,27 @@ void takeback()
 	if (m.bits & 2) {
 		int from, to;
 
-		switch(m.to) {
-			case 62:
-				from = F1;
-				to = H1;
-				break;
-			case 58:
-				from = D1;
-				to = A1;
-				break;
-			case 6:
-				from = F8;
-				to = H8;
-				break;
-			case 2:
-				from = D8;
-				to = A8;
-				break;
-			default:  /* shouldn't get here */
-				from = -1;
-				to = -1;
-				break;
+		switch (m.to) {
+		case 62:
+			from = F1;
+			to = H1;
+			break;
+		case 58:
+			from = D1;
+			to = A1;
+			break;
+		case 6:
+			from = F8;
+			to = H8;
+			break;
+		case 2:
+			from = D8;
+			to = A8;
+			break;
+		default:  /* shouldn't get here */
+			from = -1;
+			to = -1;
+			break;
 		}
 		color[to] = side;
 		piece[to] = ROOK;
